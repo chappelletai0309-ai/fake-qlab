@@ -91,8 +91,8 @@ body {
 
 .go-btn {
     background-color: var(--accent-color);
-    flex: 2;
-    box-shadow: 0 8px 16px rgba(76, 175, 80, 0.2);
+    flex: 1.5;
+    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.2);
 }
 
 .panic-btn {
@@ -116,13 +116,35 @@ body {
 .cue-item {
     background-color: var(--surface-color);
     border-radius: var(--radius);
-    padding: 20px 16px;
+    padding: 16px 12px;
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-start;
     align-items: center;
     cursor: pointer;
     border: 2px solid transparent;
     transition: all 0.2s;
+}
+
+.drag-handle {
+    padding: 10px;
+    padding-right: 16px;
+    color: #555;
+    font-size: 1.3rem;
+    cursor: grab;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.drag-handle:active {
+    cursor: grabbing;
+}
+
+.cue-item-content {
+    display: flex;
+    flex: 1;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .cue-item.selected {

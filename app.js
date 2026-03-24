@@ -2,10 +2,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const unlockOverlay = document.getElementById('unlock-overlay');
     const unlockBtn = document.getElementById('unlock-btn');
     const fileInput = document.getElementById('file-input');
-    const addCueBtn = document.getElementById('add-cue-btn');
     const cueListEl = document.getElementById('cue-list');
     const btnGo = document.getElementById('btn-go');
+    const btnPause = document.getElementById('btn-pause');
     const btnPanic = document.getElementById('btn-panic');
+    
     const inspector = document.getElementById('inspector');
     const closeInspector = document.getElementById('close-inspector-btn');
     
@@ -15,6 +16,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const volVal = document.getElementById('vol-val');
     const panIn = document.getElementById('cue-pan-input');
     const panVal = document.getElementById('pan-val');
+    const fadeInIn = document.getElementById('cue-fadein-input');
+    const fadeOutIn = document.getElementById('cue-fadeout-input');
+    const loopIn = document.getElementById('cue-loop-input');
     const delBtn = document.getElementById('delete-cue-btn');
 
     let audio;
@@ -29,13 +33,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }, { passive: false });
 
-    // 1. Init Audio
+    // 1. Init Audio & Sortable
     unlockBtn.addEventListener('click', async () => {
         try {
             audio = new AudioEngine();
             await audio.unlock();
             unlockOverlay.classList.add('hidden');
             requestWakeLock();
+
+            // Initialize Sortable setup for touch dragging
+            new Sortable(cueListEl, {
+                animation: 150,
+                handle: '.drag-handle',
+                ghostClass: 'sortable-ghost',
+                onEnd: function (evt) {
+                    const item = cues.splice(evt.oldIndex, 1)[0];
+                    cues.splice(evt.newIndex, 0, item);
+                    // No need to re-render, DOM is automatically updated by Sortable
+                }
+            });
+
         } catch (e) {
             alert('Failed to initialize audio: ' + e.message);
         }
@@ -46,17 +63,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if ('wakeLock' in navigator) {
             try {
                 wakeLock = await navigator.wakeLock.request('screen');
-            } catch (err) {
-                console.log('Wake Lock request failed', err);
-            }
+            } catch (err) {}
         }
     }
 
-    // 2. Add Cues
-    addCueBtn.addEventListener('click', () => fileInput.click());
-    
+    // 2. Add Cues (Input click triggered by label tag in HTML)
+    const addSpan = document.querySelector('#add-cue-btn');
     fileInput.addEventListener('change', async (e) => {
-        addCueBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 讀取中';
+        const originalText = addSpan.innerHTML;
+        addSpan.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 讀取中';
         const files = Array.from(e.target.files);
         for (const file of files) {
             try {
@@ -68,17 +83,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     duration: buffer.duration,
                     volume: 0,
                     pan: 0,
+                    fade_in: 0,
+                    fade_out: 0,
+                    loop: false,
                     isPlaying: false
                 };
                 cues.push(cue);
                 if (!selectedCueId) selectCue(cue.id);
             } catch (err) {
                 console.error('Decode error', err);
-                alert(`Cannot decode file: ${file.name}`);
+                alert(`無法解碼音檔: ${file.name}`);
             }
         }
-        addCueBtn.innerHTML = '<i class="fas fa-plus"></i> 新增音檔';
-        fileInput.value = ''; // clear
+        addSpan.innerHTML = originalText;
+        fileInput.value = ''; 
         renderCues();
     });
 
@@ -93,58 +111,72 @@ document.addEventListener('DOMContentLoaded', () => {
         cues.forEach((cue) => {
             const li = document.createElement('li');
             li.className = `cue-item ${selectedCueId === cue.id ? 'selected' : ''} ${cue.isPlaying ? 'playing' : ''}`;
+            
+            let badges = '';
+            if (cue.loop) badges += ' | Loop';
+            if (cue.fade_in > 0 || cue.fade_out > 0) badges += ' | Fade';
+
             li.innerHTML = `
-                <div class="cue-info">
-                    <span class="cue-name">${cue.name}</span>
-                    <span class="cue-meta">${formatTime(cue.duration)} | Vol: ${cue.volume}dB</span>
-                </div>
-                <div class="cue-status">
-                    ${cue.isPlaying ? '<i class="fas fa-volume-up"></i>' : '<i class="fas fa-ellipsis-v"></i>'}
+                <div class="drag-handle"><i class="fas fa-bars"></i></div>
+                <div class="cue-item-content">
+                    <div class="cue-info">
+                        <span class="cue-name">${cue.name}</span>
+                        <span class="cue-meta">${formatTime(cue.duration)} | Vol: ${cue.volume}dB ${badges}</span>
+                    </div>
+                    <div class="cue-status">
+                        ${cue.isPlaying ? '<i class="fas fa-volume-up"></i>' : '<i class="fas fa-ellipsis-v"></i>'}
+                    </div>
                 </div>
             `;
-            li.addEventListener('click', () => {
+            
+            // Allow clicking item content to select
+            li.querySelector('.cue-item-content').addEventListener('click', () => {
                 const wasSelected = selectedCueId === cue.id;
                 selectCue(cue.id);
                 if (wasSelected) {
-                    openInspector(); // Open only on double tap or if already selected
-                } else {
-                    // Just select first
+                    openInspector();
                 }
             });
-            // Long press for inspector
-            let pressTimer;
-            li.addEventListener('touchstart', () => {
-                pressTimer = setTimeout(() => {
-                    selectCue(cue.id);
-                    openInspector();
-                }, 500);
-            });
-            li.addEventListener('touchend', () => clearTimeout(pressTimer));
-            li.addEventListener('touchmove', () => clearTimeout(pressTimer));
-
+            
             cueListEl.appendChild(li);
         });
     }
 
     function formatTime(seconds) {
+        if (!seconds || isNaN(seconds)) return '0:00';
         const m = Math.floor(seconds / 60);
         const s = Math.floor(seconds % 60);
         return `${m}:${s.toString().padStart(2, '0')}`;
     }
 
-    // 4. Transport
+    // 4. Transport Global
     btnGo.addEventListener('click', () => {
         if (!selectedCueId) return;
         const index = cues.findIndex(c => c.id === selectedCueId);
         if (index === -1) return;
         
-        // Find cue and play
         const currentCue = cues[index];
         playCue(currentCue);
         
-        // Auto select next if not playing (only shift selection on fresh GO trigger)
         if (currentCue.isPlaying && index < cues.length - 1) {
             selectCue(cues[index + 1].id);
+        }
+    });
+
+    // Global Pause toggles AudioContext suspension via Web Audio API 
+    let isPaused = false;
+    btnPause.addEventListener('click', async () => {
+        if (!audio) return;
+        if (audio.ctx.state === 'running') {
+            await audio.ctx.suspend();
+            btnPause.style.backgroundColor = '#4CAF50';
+            btnPause.innerHTML = 'RESUME <i class="fas fa-play"></i>';
+            isPaused = true;
+        } else if (audio.ctx.state === 'suspended') {
+            await audio.ctx.resume();
+            btnPause.style.backgroundColor = '#ff9800';
+            btnPause.innerHTML = 'PAUSE <i class="fas fa-pause"></i>';
+            isPaused = false;
         }
     });
 
@@ -153,13 +185,22 @@ document.addEventListener('DOMContentLoaded', () => {
         playingCues.clear();
         cues.forEach(c => c.isPlaying = false);
         audio.stopAll();
+        
+        // ensure we exit pause state if panicked
+        if (isPaused) {
+            audio.ctx.resume();
+            btnPause.style.backgroundColor = '#ff9800';
+            btnPause.innerHTML = 'PAUSE <i class="fas fa-pause"></i>';
+            isPaused = false;
+        }
+        
         renderCues();
     });
 
     function playCue(cue) {
         if (cue.isPlaying) {
-            // Stop if already playing
             if (playingCues.has(cue.id)) {
+                // If fading out, prevent abrupt stop unless they want it. We will just stop abruptly.
                 playingCues.get(cue.id).source.stop();
                 playingCues.delete(cue.id);
             }
@@ -169,6 +210,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const player = audio.createPlayer(cue.buffer, cue.volume, cue.pan);
+        player.source.loop = cue.loop;
+        
+        const targetGain = audio.dbToGain(cue.volume);
+        
+        // Handle Fade In
+        if (cue.fade_in > 0) {
+            player.gainNode.gain.setValueAtTime(0, audio.ctx.currentTime);
+            player.gainNode.gain.linearRampToValueAtTime(targetGain, audio.ctx.currentTime + cue.fade_in);
+        } else {
+            player.gainNode.gain.value = targetGain;
+        }
+
+        // Handle Fade Out
+        if (cue.fade_out > 0 && !cue.loop) {
+            const fadeOutStart = audio.ctx.currentTime + cue.duration - cue.fade_out;
+            if (fadeOutStart > audio.ctx.currentTime) {
+                // Keep target gain until the fade out starts
+                player.gainNode.gain.setValueAtTime(targetGain, fadeOutStart);
+                player.gainNode.gain.linearRampToValueAtTime(0, audio.ctx.currentTime + cue.duration);
+            }
+        }
+        
         player.source.start(0);
         
         cue.isPlaying = true;
@@ -201,6 +264,10 @@ document.addEventListener('DOMContentLoaded', () => {
         volVal.textContent = cue.volume;
         panIn.value = cue.pan;
         panVal.textContent = cue.pan === 0 ? 'C' : (cue.pan > 0 ? `R${cue.pan}` : `L${Math.abs(cue.pan)}`);
+        
+        fadeInIn.value = cue.fade_in || 0;
+        fadeOutIn.value = cue.fade_out || 0;
+        loopIn.checked = cue.loop || false;
     }
 
     function openInspector() {
@@ -215,10 +282,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Inspector Events
     nameIn.addEventListener('input', (e) => {
         const cue = cues.find(c => c.id === selectedCueId);
-        if (cue) {
-            cue.name = e.target.value;
-            renderCues(); // Re-render to show new name
-        }
+        if (cue) { cue.name = e.target.value; renderCues(); }
     });
 
     volIn.addEventListener('input', (e) => {
@@ -228,7 +292,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (cue) {
             cue.volume = parseFloat(val);
             if (playingCues.has(cue.id)) {
-                playingCues.get(cue.id).gainNode.gain.value = audio.dbToGain(cue.volume);
+                // adjust dynamically, avoid resetting scheduled ramps if possible but simple app setting value directly
+                playingCues.get(cue.id).gainNode.gain.setValueAtTime(audio.dbToGain(cue.volume), audio.ctx.currentTime);
             }
             renderCues();
         }
@@ -246,22 +311,45 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    fadeInIn.addEventListener('input', (e) => {
+        const cue = cues.find(c => c.id === selectedCueId);
+        if (cue) {
+            cue.fade_in = parseFloat(e.target.value) || 0;
+            renderCues();
+        }
+    });
+
+    fadeOutIn.addEventListener('input', (e) => {
+        const cue = cues.find(c => c.id === selectedCueId);
+        if (cue) {
+            cue.fade_out = parseFloat(e.target.value) || 0;
+            renderCues();
+        }
+    });
+
+    loopIn.addEventListener('change', (e) => {
+        const cue = cues.find(c => c.id === selectedCueId);
+        if (cue) {
+            cue.loop = e.target.checked;
+            if (playingCues.has(cue.id)) {
+                playingCues.get(cue.id).source.loop = cue.loop;
+            }
+            renderCues();
+        }
+    });
+
     delBtn.addEventListener('click', () => {
         if (!selectedCueId) return;
-        
         if (playingCues.has(selectedCueId)) {
             playingCues.get(selectedCueId).source.stop();
             playingCues.delete(selectedCueId);
         }
-
         cues = cues.filter(c => c.id !== selectedCueId);
         selectedCueId = cues.length > 0 ? cues[0].id : null;
-        
         inspector.classList.add('slide-down');
         renderCues();
     });
 
-    // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
         if (e.target.tagName === 'INPUT') return;
         if (e.code === 'Space') {
@@ -272,6 +360,5 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    // Initial Render
     renderCues();
 });
