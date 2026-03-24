@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Fake QLab</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div id="unlock-overlay" class="overlay">
+        <button id="unlock-btn" class="primary-btn pulse">解鎖音效 (Tap to Start)</button>
+    </div>
+
+    <div id="app-container">
+        <!-- Top Toolbar -->
+        <header class="top-bar">
+            <h1>Fake QLab</h1>
+            <button id="add-cue-btn" class="icon-btn"><i class="fas fa-plus"></i> 新增音檔</button>
+            <input type="file" id="file-input" multiple accept="audio/*" style="display: none;">
+        </header>
+
+        <!-- Transport Controls -->
+        <section class="transport-controls">
+            <button id="btn-go" class="huge-btn go-btn">GO <i class="fas fa-play"></i></button>
+            <button id="btn-panic" class="huge-btn panic-btn">PANIC <i class="fas fa-stop"></i></button>
+        </section>
+
+        <!-- Cue List -->
+        <section class="cue-list-container">
+            <ul id="cue-list" class="cue-list">
+                <!-- Cues will be injected here -->
+            </ul>
+        </section>
+
+        <!-- Slide-up Inspector -->
+        <div id="inspector" class="inspector slide-down">
+            <div class="inspector-header">
+                <h3>Cue 設定</h3>
+                <button id="close-inspector-btn" class="icon-btn"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="inspector-body">
+                <div class="control-group">
+                    <label>名稱</label>
+                    <input type="text" id="cue-name-input">
+                </div>
+                <div class="control-group">
+                    <label>音量 (<span id="vol-val">0</span> dB)</label>
+                    <input type="range" id="cue-vol-input" min="-60" max="12" value="0" step="1">
+                </div>
+                <div class="control-group">
+                    <label>聲像 (<span id="pan-val">C</span>)</label>
+                    <input type="range" id="cue-pan-input" min="-1" max="1" value="0" step="0.1">
+                </div>
+                <div class="control-group">
+                    <button id="delete-cue-btn" class="danger-btn"><i class="fas fa-trash"></i> 刪除此 Cue</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="audio.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
