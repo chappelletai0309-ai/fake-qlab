@@ -200,7 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
         volIn.value = cue.volume;
         volVal.textContent = cue.volume;
         panIn.value = cue.pan;
-        panVal.textContent = cue.pan === 0 ? 'C' : (cue.pan > 0 ? \`R\${cue.pan}\` : \`L\${Math.abs(cue.pan)}\`);
+        panVal.textContent = cue.pan === 0 ? 'C' : (cue.pan > 0 ? `R${cue.pan}` : `L${Math.abs(cue.pan)}`);
     }
 
     function openInspector() {
@@ -236,7 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     panIn.addEventListener('input', (e) => {
         const val = e.target.value;
-        panVal.textContent = val == 0 ? 'C' : (val > 0 ? \`R\${val}\` : \`L\${Math.abs(val)}\`);
+        panVal.textContent = val == 0 ? 'C' : (val > 0 ? `R${val}` : `L${Math.abs(val)}`);
         const cue = cues.find(c => c.id === selectedCueId);
         if (cue) {
             cue.pan = parseFloat(val);
